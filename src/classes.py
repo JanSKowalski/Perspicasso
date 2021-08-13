@@ -7,14 +7,8 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-
-#from sklearn import metrics
-#from sklearn import decomposition
-#from sklearn import manifold
-#import matplotlib.pyplot as plt
 import numpy as np
 
-#import copy
 import random
 import time
 
@@ -23,42 +17,53 @@ from torch.utils.data import Dataset, DataLoader
 from skimage import io, transform
 from sklearn.model_selection import train_test_split
 
+
 #Access to the dataset of images and the label
 class MahanArtDataset(Dataset):
-
-	def __init__(self, csv_file, train=True, transform=None):
-		self.data = pd.read_csv(csv_file)
+	def __init__(self, dataframe, transform=None):
+		self.data = dataframe
 		self.data['classification'] = self.data['classification'].astype('category').cat.codes
 		self.transform = transform
-		#Split train/test
-		msk = np.random.rand(len(self.data)) < 0.8
-		train_data = self.data[msk]
-		test_data = self.data[~msk]
-		if (train):
-			self.data=train_data
-		else:
-			self.data=test_data
 		self.len = len(self.data)
 
 	def __len__(self):
 		return self.len
 
 	def __getitem__(self, index):
-		imagepath = self.data['filepath'][index]
+		#Lookup data
+		imagepath = self.data['filepath'].iloc[index]
 		image = io.imread(imagepath)
-		#image = np.array(image)
-		classification = self.data['classification'][index]
-		
-		#preprocessing transforms
+		classification = self.data['classification'].iloc[index]
+				
+		#Quick and dirty greyscale to rgb conversion
+		if (len(image.shape)==2):
+			image = np.array([image, image, image])
+			image = np.transpose(image, (1,2,0))
+				
+		#Preprocessing transforms
 		if self.transform:
-			image = torch.from_numpy(image)
 			#randomCrop expects the last two dimensions to be H and W
 			image = np.transpose(image, (2,0,1))
+			image = torch.from_numpy(image)
 			image = self.transform(image)
+			#image = image.numpy()
 			#transpose back into standard H W RGB format
 			image = np.transpose(image, (1,2,0))
+			
+		return {'image':image, 'classification':classification}
 
-		sample = {'image':image, 'classification':classification}
-		return sample
+class MLP(nn.Module):
+	def __init__(self, input_dim, output_dim):
+		super().__init__()
 
+		self.input_fc = nn.Linear(input_dim, 250)
+		self.hidden_fc = nn.Linear(250, 100)
+		self.output_fc = nn.Linear(100, output_dim)
 
+	def forward(self, x):
+		batch_size = x.shape[0]
+		x = x.view(batch_size, -1)
+		h_1 = F.relu(self.input_fc(x))
+		h_2 = F.relu(self.hidden_fc(h_1))
+		y_pred = self.output_fc(h_2)
+		return y_pred, h_2
