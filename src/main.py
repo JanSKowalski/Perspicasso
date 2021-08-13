@@ -8,8 +8,9 @@ csvpath = "./images.csv"
 ##############             Main commands                 #################
 ##########################################################################
 def main():
+
 	#prepare data as csv
-	#functions.write_art_labels_to_csv(datapath, csvpath)
+	functions.write_art_labels_to_csv(datapath, csvpath)
 		
 	#split train/val/test, then load into data iterators
 	tr_it, v_it, te_it = functions.prepare_data(csvpath)	
@@ -20,14 +21,14 @@ def main():
 	model = MLP(INPUT_DIM, OUTPUT_DIM)	
 
 	#train model on info in csv
-	NUM_EPOCHS = 60
-	functions.train_model(NUM_EPOCHS, model, tr_it, v_it, te_it)
+	NUM_EPOCHS = 20
+	output_filename = model.name()+'.pt'
+	functions.train_model(NUM_EPOCHS, model, tr_it, v_it, output_filename)
 
 	#load trained model from pt, test model
-	#functions.test_model(te_it)
+	functions.test_model(output_filename, model, te_it)
 
-	#autogenerate graphs for analysis
-	#matplotlib of train/validation accuracy as epochs go on
+
 
 ##########################################################################
 

@@ -10,6 +10,7 @@ import torchvision.datasets as datasets
 #from sklearn import metrics
 #from sklearn import decomposition
 #from sklearn import manifold
+from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -88,7 +89,7 @@ def prepare_data(csvpath):
 	print(f'Number of initial testing examples: {len(testing_data)}')
 
 	#Define iterators from pytorch, helps manage the data references
-	BATCH_SIZE = 64
+	BATCH_SIZE = 115
 	train_iterator = data.DataLoader(training_data, shuffle = True, batch_size = BATCH_SIZE)
 	valid_iterator = data.DataLoader(validation_data, batch_size = BATCH_SIZE)
 	test_iterator = data.DataLoader(testing_data, batch_size = BATCH_SIZE)
@@ -100,7 +101,56 @@ def prepare_data(csvpath):
 
 	return train_iterator, valid_iterator, test_iterator
 
-def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, test_iterator):
+#Written by Ben Trevett
+def calculate_accuracy(y_pred, y):
+    top_pred = y_pred.argmax(1, keepdim = True)
+    correct = top_pred.eq(y.view_as(top_pred)).sum()
+    acc = correct.float() / y.shape[0]
+    return acc
+    
+#Written by Ben Trevett
+def train(model, iterator, optimizer, criterion, device):
+	epoch_loss = 0
+	epoch_acc = 0
+	model.train()
+	for item in iterator:
+		x=item['image'].to(device)
+		y=item['classification'].to(device)
+		optimizer.zero_grad()
+		y_pred, _ = model(x)
+		loss = criterion(y_pred, y)
+		acc = calculate_accuracy(y_pred, y)
+		loss.backward()
+		optimizer.step()
+		epoch_loss += loss.item()
+		epoch_acc += acc.item()
+	return epoch_loss / len(iterator), epoch_acc / len(iterator)
+
+#Written by Ben Trevett
+def evaluate(model, iterator, criterion, device):
+	epoch_loss = 0
+	epoch_acc = 0
+	model.eval()
+	with torch.no_grad():
+		for item in iterator:
+			x=item['image'].to(device)
+			y=item['classification'].to(device)
+			y_pred, _ = model(x)
+			loss = criterion(y_pred, y)
+			acc = calculate_accuracy(y_pred, y)
+			epoch_loss += loss.item()
+			epoch_acc += acc.item()
+	
+	return epoch_loss / len(iterator), epoch_acc / len(iterator)
+
+#Written by Ben Trevett
+def epoch_time(start_time, end_time):
+	elapsed_time = end_time - start_time
+	elapsed_mins = int(elapsed_time / 60)
+	elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+	return elapsed_mins, elapsed_secs
+
+def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filename):
 
 	#Look at computer hardware
 	optimizer = optim.Adam(model.parameters())
@@ -109,58 +159,8 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, test_iterator
 	model = model.to(device)
 	criterion = criterion.to(device)
 	
-	def calculate_accuracy(y_pred, y):
-	    top_pred = y_pred.argmax(1, keepdim = True)
-	    correct = top_pred.eq(y.view_as(top_pred)).sum()
-	    acc = correct.float() / y.shape[0]
-	    return acc
-	    
-
-	def train(model, iterator, optimizer, criterion, device):
-		epoch_loss = 0
-		epoch_acc = 0
-		model.train()
-		for item in iterator:
-			x=item['image'].to(device)
-			y=item['classification'].to(device)
-			optimizer.zero_grad()
-			y_pred, _ = model(x)
-			loss = criterion(y_pred, y)
-			acc = calculate_accuracy(y_pred, y)
-			loss.backward()
-			optimizer.step()
-			epoch_loss += loss.item()
-			epoch_acc += acc.item()
-		return epoch_loss / len(iterator), epoch_acc / len(iterator)
-
-	def evaluate(model, iterator, criterion, device):
-		epoch_loss = 0
-		epoch_acc = 0
-		model.eval()
-		with torch.no_grad():
-			for item in iterator:
-				x=item['image'].to(device)
-				y=item['classification'].to(device)
-				y_pred, _ = model(x)
-				loss = criterion(y_pred, y)
-				acc = calculate_accuracy(y_pred, y)
-				epoch_loss += loss.item()
-				epoch_acc += acc.item()
-		
-		return epoch_loss / len(iterator), epoch_acc / len(iterator)
-	    
-	def epoch_time(start_time, end_time):
-		elapsed_time = end_time - start_time
-		elapsed_mins = int(elapsed_time / 60)
-		elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
-		return elapsed_mins, elapsed_secs
-	    
-
-
-
 	best_valid_loss = float('inf')
-	output_filename = model.name()+'.pt'
-
+	
 	for epoch in range(NUM_EPOCHS):
 		start_time = time.monotonic()
 		
@@ -178,11 +178,35 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, test_iterator
 		print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 
 
-	#def test_model(test_iterator)
+def test_model(output_filename, model, test_iterator):
 	model.load_state_dict(torch.load(output_filename))
 
+	criterion = nn.CrossEntropyLoss()
+	#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+	device = 'cpu'
+	model = model.to(device)
+	#criterion = criterion.to(device)
+	
 	test_loss, test_acc = evaluate(model, test_iterator, criterion, device)
-
-
 	print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
+	
+	#output confusion matrix
+	model.eval()
+	with torch.no_grad():
+		y_true = []
+		y_choice = []
+		for item in test_iterator:
+			x=item['image'].to(device)
+			y=item['classification'].to(device)
+			y_pred, _ = model(x)
+			for entry in y:
+				y_true.append(entry)
+			for entry in y_pred:
+				y_choice.append(torch.argmax(entry).numpy())
+		print("#--------------------------------------#")
+		print("Confusion matrix of test predictions:")
+		print(confusion_matrix(y_true, y_choice))
+
+	
+	
 	
