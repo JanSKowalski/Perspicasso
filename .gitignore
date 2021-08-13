@@ -130,3 +130,7 @@ dmypy.json
 
 # Custom ignores go here
 Dataset/
+doc/*.aux
+doc/*.bbl
+doc/*.blg
+doc/*.out

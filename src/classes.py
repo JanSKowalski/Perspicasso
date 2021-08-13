@@ -33,7 +33,9 @@ class MahanArtDataset(Dataset):
 		#Lookup data
 		imagepath = self.data['filepath'].iloc[index]
 		image = io.imread(imagepath)
-		classification = self.data['classification'].iloc[index]
+		#torch long type required by CrossEntropyLoss()
+		#https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
+		classification = torch.tensor(self.data['classification'].iloc[index], dtype=torch.long)
 				
 		#Quick and dirty greyscale to rgb conversion
 		if (len(image.shape)==2):
@@ -67,3 +69,6 @@ class MLP(nn.Module):
 		h_2 = F.relu(self.hidden_fc(h_1))
 		y_pred = self.output_fc(h_2)
 		return y_pred, h_2
+	
+	def name(self):
+		return "MLP_neural_network"

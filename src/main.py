@@ -1,4 +1,5 @@
 import functions
+from classes import MLP
 
 datapath = "../Dataset/images"
 csvpath = "./images.csv"
@@ -10,12 +11,20 @@ def main():
 	#prepare data as csv
 	#functions.write_art_labels_to_csv(datapath, csvpath)
 		
-	#data into dataloaders, load model specs
-	#returns model architecture and data iterators
-	model, tr_it, v_it, te_it = functions.prepare_model(csvpath)	
-		
+	#split train/val/test, then load into data iterators
+	tr_it, v_it, te_it = functions.prepare_data(csvpath)	
+	
+	#Build model architecture
+	INPUT_DIM = 28 * 28 * 3
+	OUTPUT_DIM = 7
+	model = MLP(INPUT_DIM, OUTPUT_DIM)	
+
 	#train model on info in csv
-	#functions.train_model(model, tr_it, v_it, te_it)
+	NUM_EPOCHS = 60
+	functions.train_model(NUM_EPOCHS, model, tr_it, v_it, te_it)
+
+	#load trained model from pt, test model
+	#functions.test_model(te_it)
 
 	#autogenerate graphs for analysis
 	#matplotlib of train/validation accuracy as epochs go on

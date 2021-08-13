@@ -7,14 +7,12 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-
 #from sklearn import metrics
 #from sklearn import decomposition
 #from sklearn import manifold
 import matplotlib.pyplot as plt
 import numpy as np
 
-#import copy
 import random
 import time
 
@@ -26,7 +24,7 @@ from skimage import io, transform
 import os
 import csv
 
-from classes import MahanArtDataset, MLP
+from classes import MahanArtDataset
 
 TRAIN_TEST_RATIO = 0.8
 VALIDATION_TRAIN_RATIO = 0.1
@@ -65,7 +63,7 @@ def write_art_labels_to_csv(datapath, csvpath):
 	print("There are "+ str(size_of_data) +" data entries in this csv")
 
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
-def prepare_model(csvpath):
+def prepare_data(csvpath):
 
 	#Determine what preprocessing steps the photos should go through
 	#	ToPILImage() is so that ToTensor() doesn't complain
@@ -100,14 +98,9 @@ def prepare_model(csvpath):
 		print("image is: " + str(item['classification']))
 	print("Classification access complete")
 
-	#Build model architecture
-	INPUT_DIM = 28 * 28 * 3
-	OUTPUT_DIM = 7
-	model = MLP(INPUT_DIM, OUTPUT_DIM)
-	
-	return model, train_iterator, valid_iterator, test_iterator
+	return train_iterator, valid_iterator, test_iterator
 
-def train_model(model, train_iterator, valid_iterator, test_iterator):
+def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, test_iterator):
 
 	#Look at computer hardware
 	optimizer = optim.Adam(model.parameters())
@@ -128,11 +121,8 @@ def train_model(model, train_iterator, valid_iterator, test_iterator):
 		epoch_acc = 0
 		model.train()
 		for item in iterator:
-			#print(item)
-			print(item['classification'])
-		for (x, y) in iterator:
-			x = x.to(device)
-			y = y.to(device)
+			x=item['image'].to(device)
+			y=item['classification'].to(device)
 			optimizer.zero_grad()
 			y_pred, _ = model(x)
 			loss = criterion(y_pred, y)
@@ -148,9 +138,9 @@ def train_model(model, train_iterator, valid_iterator, test_iterator):
 		epoch_acc = 0
 		model.eval()
 		with torch.no_grad():
-			for (x, y) in iterator:
-				x = x.to(device)
-				y = y.to(device)
+			for item in iterator:
+				x=item['image'].to(device)
+				y=item['classification'].to(device)
 				y_pred, _ = model(x)
 				loss = criterion(y_pred, y)
 				acc = calculate_accuracy(y_pred, y)
@@ -167,30 +157,29 @@ def train_model(model, train_iterator, valid_iterator, test_iterator):
 	    
 
 
-	EPOCHS = 10
 
 	best_valid_loss = float('inf')
+	output_filename = model.name()+'.pt'
 
-	for epoch in range(EPOCHS):
-	    
+	for epoch in range(NUM_EPOCHS):
 		start_time = time.monotonic()
-
+		
 		train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device)
 		valid_loss, valid_acc = evaluate(model, valid_iterator, criterion, device)
-
 		if valid_loss < best_valid_loss:
 			best_valid_loss = valid_loss
-			torch.save(model.state_dict(), 'tut1-model.pt')
+			torch.save(model.state_dict(), output_filename)
 		    
 		end_time = time.monotonic()
-
 		epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
 		print(f'Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
 		print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
 		print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 
-	model.load_state_dict(torch.load('tut1-model.pt'))
+
+	#def test_model(test_iterator)
+	model.load_state_dict(torch.load(output_filename))
 
 	test_loss, test_acc = evaluate(model, test_iterator, criterion, device)
 
