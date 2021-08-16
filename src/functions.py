@@ -16,6 +16,7 @@ import numpy as np
 
 import random
 import time
+import PIL
 
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
@@ -62,6 +63,25 @@ def write_art_labels_to_csv(datapath, csvpath):
 			size_of_data += 1
 	csv_file.close()
 	print("There are "+ str(size_of_data) +" data entries in this csv")
+
+#Assumes write_art_labels_to_csv() was run
+def largest_frame_size(csvpath):
+	width = 0
+	height = 0
+	#open file
+	with open(csvpath, 'r') as csv_file:
+		next(csv_file)
+		row_reader = csv.reader(csv_file)
+		#run through each image
+		for row in row_reader:
+			#read in image
+			image = PIL.Image.open(row[1])
+			w_t, h_t = image.size
+			if (w_t > width):
+				width = w_t
+			if (h_t > height):
+				height = h_t
+	return (width, height)
 
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
 def prepare_data(csvpath):
@@ -150,6 +170,7 @@ def epoch_time(start_time, end_time):
 	elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
 	return elapsed_mins, elapsed_secs
 
+#High level training control -- Important
 def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filename):
 
 	#Look at computer hardware
@@ -177,7 +198,7 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 		print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
 		print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 
-
+#Find out what the accuracy is on test data
 def test_model(output_filename, model, test_iterator):
 	model.load_state_dict(torch.load(output_filename))
 
