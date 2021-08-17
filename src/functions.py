@@ -66,8 +66,8 @@ def write_art_labels_to_csv(datapath, csvpath):
 
 #Assumes write_art_labels_to_csv() was run
 def largest_frame_size(csvpath):
-	width = 0
-	height = 0
+	width = 100000
+	height = 1000000
 	#open file
 	with open(csvpath, 'r') as csv_file:
 		next(csv_file)
@@ -77,18 +77,19 @@ def largest_frame_size(csvpath):
 			#read in image
 			image = PIL.Image.open(row[1])
 			w_t, h_t = image.size
-			if (w_t > width):
+			if (w_t < width):
 				width = w_t
-			if (h_t > height):
+			if (h_t < height):
 				height = h_t
 	return (width, height)
 
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
-def prepare_data(csvpath):
+def prepare_data(csvpath, frame_size):
 
 	#Determine what preprocessing steps the photos should go through
 	#	ToPILImage() is so that ToTensor() doesn't complain
-	chosen_transforms = transforms.Compose([	transforms.RandomCrop(28, padding = 2),
+	chosen_transforms = transforms.Compose([	#transforms.Resize(size=1600),
+							transforms.RandomCrop(frame_size, padding = 2),
 							transforms.ToPILImage(), 
 							transforms.ToTensor()])
 
@@ -104,9 +105,9 @@ def prepare_data(csvpath):
 	validation_data = MahanArtDataset(val_df, transform=chosen_transforms)
 	testing_data = MahanArtDataset(test_df, transform=chosen_transforms)
 	
-	print(f'Number of initial training examples: {len(training_data)}')
-	print(f'Number of initial validation examples: {len(validation_data)}')
-	print(f'Number of initial testing examples: {len(testing_data)}')
+	#print(f'Number of initial training examples: {len(training_data)}')
+	#print(f'Number of initial validation examples: {len(validation_data)}')
+	#print(f'Number of initial testing examples: {len(testing_data)}')
 
 	#Define iterators from pytorch, helps manage the data references
 	BATCH_SIZE = 115
@@ -114,10 +115,10 @@ def prepare_data(csvpath):
 	valid_iterator = data.DataLoader(validation_data, batch_size = BATCH_SIZE)
 	test_iterator = data.DataLoader(testing_data, batch_size = BATCH_SIZE)
 
-	print("Attempting to access classifications")
-	for item in train_iterator:
-		print("image is: " + str(item['classification']))
-	print("Classification access complete")
+	#print("Attempting to access classifications")
+	#for item in train_iterator:
+	#	print("image is: " + str(item['classification']))
+	#print("Classification access complete")
 
 	return train_iterator, valid_iterator, test_iterator
 
@@ -228,6 +229,7 @@ def test_model(output_filename, model, test_iterator):
 		print("Confusion matrix of test predictions:")
 		print(confusion_matrix(y_true, y_choice))
 
+	return test_acc
 	
 	
 	

@@ -24,6 +24,23 @@ Perspicasso\\
 
 Technique for visualizing neural network activations\cite{samek2015evaluating}
 
+\section*{Aug. 17}
+As noted in the weekly progress document, there were four material tasks to complete
+
+\subsection*{Image frame size function}
+
+The largest_frame_size() function in src/functions.py iterates through the image files and determines the largest height/width dimensions. As Suleman noted in the chat, the largest aggregate frame was (1600, 1600) pixels.
+
+
+\subsection*{Greyscale -> RGB transform comparison }
+
+My implementation of Greyscale to RGB is a simple copy of the [0-255] pixel values across all three RGB channels. This is recommended by Ates Goral on SO (https://stackoverflow.com/questions/835753/convert-grayscale-value-to-rgb-representation).
+
+As it turns out, this method is also (implicitly) recommended by the pytorch devs (https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315).
+
+\subsection*{Performance vs. Num_epochs vs. Frame_size}
+
+
 \newpage
 \bibliography{perspicasso}
 \bibliographystyle{IEEEtran}
