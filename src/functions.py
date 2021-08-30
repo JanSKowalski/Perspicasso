@@ -26,7 +26,9 @@ from skimage import io, transform
 import os
 import csv
 
-from classes import MahanArtDataset
+
+
+from classes import MahanArtDataset, SquarePad	
 
 TRAIN_TEST_RATIO = 0.8
 VALIDATION_TRAIN_RATIO = 0.1
@@ -63,33 +65,22 @@ def write_art_labels_to_csv(datapath, csvpath):
 			size_of_data += 1
 	csv_file.close()
 	print("There are "+ str(size_of_data) +" data entries in this csv")
+	
 
-#Assumes write_art_labels_to_csv() was run
-def largest_frame_size(csvpath):
-	width = 100000
-	height = 1000000
-	#open file
-	with open(csvpath, 'r') as csv_file:
-		next(csv_file)
-		row_reader = csv.reader(csv_file)
-		#run through each image
-		for row in row_reader:
-			#read in image
-			image = PIL.Image.open(row[1])
-			w_t, h_t = image.size
-			if (w_t < width):
-				width = w_t
-			if (h_t < height):
-				height = h_t
-	return (width, height)
+
+
+
+
+
+
 
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
 def prepare_data(csvpath, frame_size):
 
 	#Determine what preprocessing steps the photos should go through
 	#	ToPILImage() is so that ToTensor() doesn't complain
-	chosen_transforms = transforms.Compose([	#transforms.Resize(size=1600),
-							transforms.RandomCrop(frame_size, padding = 2),
+	chosen_transforms = transforms.Compose([	#SquarePad(csvpath),
+							transforms.Resize(frame_size),
 							transforms.ToPILImage(), 
 							transforms.ToTensor()])
 
@@ -188,9 +179,10 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 		
 		train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device)
 		valid_loss, valid_acc = evaluate(model, valid_iterator, criterion, device)
-		if valid_loss < best_valid_loss:
-			best_valid_loss = valid_loss
-			torch.save(model.state_dict(), output_filename)
+		#if valid_loss < best_valid_loss:
+		#	best_valid_loss = valid_loss
+		#	state = {'epoch': epoch + 1, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict(), 'criterion': criterion, }
+		#	torch.save(state, output_filename)
 		    
 		end_time = time.monotonic()
 		epoch_mins, epoch_secs = epoch_time(start_time, end_time)
@@ -198,16 +190,73 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 		print(f'Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
 		print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
 		print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
+	state = {'epoch': NUM_EPOCHS, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict(), 'criterion': criterion, }
+	torch.save(state, output_filename)
+		
+def continue_training_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filename):
+
+	optimizer = optim.Adam(model.parameters())
+	criterion = nn.CrossEntropyLoss()
+	model, optimizer, start_epoch, criterion = load_checkpoint(model, optimizer, criterion)
+	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+	model = model.to(device)
+	criterion = criterion.to(device)
+	for state in optimizer.state.values():
+		for k, v in state.items():
+			if isinstance(v, torch.Tensor):
+				state[k] = v.to(device)	
+
+	best_valid_loss = float('inf')
+
+	for epoch in range(NUM_EPOCHS):
+			start_time = time.monotonic()
+			
+			train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device)
+			valid_loss, valid_acc = evaluate(model, valid_iterator, criterion, device)
+			#if valid_loss < best_valid_loss:
+			#	best_valid_loss = valid_loss
+			#	state = {'epoch': epoch + 1, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict(), 'criterion': criterion, }
+			#	torch.save(state, output_filename)
+			    
+			end_time = time.monotonic()
+			epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+
+			print(f'Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
+			print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
+			print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
+	state = {'epoch': NUM_EPOCHS, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict(), 'criterion': criterion, }
+	torch.save(state, output_filename)
+
+#Written by Scott Hawley
+#https://discuss.pytorch.org/t/loading-a-saved-model-for-continue-training/17244/2
+# Note: Input model & optimizer should be pre-defined.  This routine only updates their states.
+def load_checkpoint(model, optimizer, criterion, filename="MLP_neural_network.pt"):
+    start_epoch = 0
+    if os.path.isfile(filename):
+        print("=> loading checkpoint '{}'".format(filename))
+        checkpoint = torch.load(filename)
+        start_epoch = checkpoint['epoch']
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        criterion = checkpoint['criterion']
+        print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(filename, checkpoint['epoch']))
+    else:
+        print("=> no checkpoint found at '{}'".format(filename))
+
+    return model, optimizer, start_epoch, criterion
 
 #Find out what the accuracy is on test data
 def test_model(output_filename, model, test_iterator):
-	model.load_state_dict(torch.load(output_filename))
-
+	#model.load_state_dict(torch.load(output_filename))
+	optimizer = optim.Adam(model.parameters())
 	criterion = nn.CrossEntropyLoss()
+	model, a, b, c = load_checkpoint(model, optimizer, criterion, "MLP_neural_network.pt")
+	
 	#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	device = 'cpu'
 	model = model.to(device)
-	#criterion = criterion.to(device)
+	criterion = criterion.to(device)
 	
 	test_loss, test_acc = evaluate(model, test_iterator, criterion, device)
 	print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
