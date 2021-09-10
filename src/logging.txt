@@ -730,3 +730,12 @@ Epoch: 28 | Epoch Time: 0m 1s
 Epoch: 29 | Epoch Time: 0m 1s
 	Train Loss: 0.848 | Train Acc: 74.70%
 	 Val. Loss: 2.234 |  Val. Acc: 33.33%
+Epoch: 00 | Epoch Time: 0m 2s
+	Train Loss: 1.943 | Train Acc: 9.64%
+	 Val. Loss: 2.031 |  Val. Acc: 11.11%
+Epoch: 00 | Epoch Time: 0m 2s
+	Train Loss: 1.950 | Train Acc: 12.05%
+	 Val. Loss: 7.248 |  Val. Acc: 11.11%
+Epoch: 01 | Epoch Time: 0m 1s
+	Train Loss: 6.528 | Train Acc: 19.28%
+	 Val. Loss: 12.399 |  Val. Acc: 11.11%
