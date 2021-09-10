@@ -34,7 +34,7 @@ class MahanArtDataset(Dataset):
 		self.data['classification'] = self.data['classification'].astype('category').cat.codes
 		self.transform = transform
 		self.len = len(self.data)
-		self.show = True
+		self.show = False
 
 	def __len__(self):
 		return self.len
