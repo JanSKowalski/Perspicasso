@@ -26,9 +26,7 @@ from skimage import io, transform
 import os
 import csv
 
-
-
-from classes import MahanArtDataset, SquarePad	
+from classes import MahanArtDataset	
 
 TRAIN_TEST_RATIO = 0.8
 VALIDATION_TRAIN_RATIO = 0.1
@@ -66,14 +64,6 @@ def write_art_labels_to_csv(datapath, csvpath):
 	csv_file.close()
 	print("There are "+ str(size_of_data) +" data entries in this csv")
 	
-
-
-
-
-
-
-
-
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
 def prepare_data(csvpath, frame_size):
 
@@ -123,7 +113,7 @@ def calculate_accuracy(y_pred, y):
     return acc
     
 #Written by Ben Trevett
-def train(model, iterator, optimizer, criterion, device):
+def train(model, iterator, optimizer, criterion, device, logging_file):
 	epoch_loss = 0
 	epoch_acc = 0
 	model.train()
@@ -139,6 +129,15 @@ def train(model, iterator, optimizer, criterion, device):
 		epoch_loss += loss.item()
 		epoch_acc += acc.item()
 	return epoch_loss / len(iterator), epoch_acc / len(iterator)
+
+#precision, accuracy
+#output is an n-array
+#def calculate_classwise_metrics(y_pred, y):
+##    top_pred = y_pred.argmax(1, keepdim = True)
+##    correct = top_pred.eq(y.view_as(top_pred)).sum()
+#    acc = correct.float() / y.shape[0]
+#    return acc
+    
 
 #Written by Ben Trevett
 def evaluate(model, iterator, criterion, device):
@@ -192,7 +191,7 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 	for epoch in range(NUM_EPOCHS-start_epoch):
 		start_time = time.monotonic()
 		
-		train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device)
+		train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device, logging_file)
 		valid_loss, valid_acc = evaluate(model, valid_iterator, criterion, device)
 		    
 		end_time = time.monotonic()
@@ -203,6 +202,7 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 		print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 		logging_file.write(f'Epoch: {start_epoch+epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s\n')
 		logging_file.write(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%\n')
+		
 		logging_file.write(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%\n')
 		
 		
@@ -245,6 +245,7 @@ def test_model(output_filename, model, test_iterator):
 	test_loss, test_acc = evaluate(model, test_iterator, criterion, device)
 	print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
 	
+
 	#output confusion matrix
 	model.eval()
 	with torch.no_grad():
@@ -263,6 +264,5 @@ def test_model(output_filename, model, test_iterator):
 		print(confusion_matrix(y_true, y_choice))
 
 	return test_acc
-	
 	
 	
