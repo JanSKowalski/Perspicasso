@@ -22,6 +22,12 @@ import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from skimage import io, transform
 
+import matplotlib.pyplot as plt
+from utils import store_patterns, load_patterns
+from visualization import heatmap_grid
+import lrp
+from lrp.patterns import fit_patternnet, fit_patternnet_positive # PatternNet patterns
+
 #needed for write_art_labels_to_csv()
 import os
 import csv
@@ -164,7 +170,7 @@ def epoch_time(start_time, end_time):
 	return elapsed_mins, elapsed_secs
 
 #High level training control -- Important
-def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filename):
+def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filename, load_previous):
 
 	logging_file = open("logging.txt", 'a')
 
@@ -173,15 +179,16 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 	criterion = nn.CrossEntropyLoss()
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	start_epoch = 0
-	try:
-		model, optimizer, start_epoch, criterion = load_checkpoint(model, optimizer, criterion)
-		for state in optimizer.state.values():
-			for k, v in state.items():
-				if isinstance(v, torch.Tensor):
-					state[k] = v.to(device)
-	except OSError:
-		print("Not loading from checkpoint")
-		pass
+	if (load_previous):
+		try:
+			model, optimizer, start_epoch, criterion = load_checkpoint(model, optimizer, criterion)
+			for state in optimizer.state.values():
+				for k, v in state.items():
+					if isinstance(v, torch.Tensor):
+						state[k] = v.to(device)
+		except OSError:
+			print("Not loading from checkpoint")
+			pass
 	model = model.to(device)
 	criterion = criterion.to(device)
 	
@@ -265,4 +272,107 @@ def test_model(output_filename, model, test_iterator):
 
 	return test_acc
 	
+def compute_and_plot_explanation(rule, ax_, title=None, postprocess=None, pattern=None, cmap='seismic'): 
+
+	# # # # For the interested reader:
+	# This is where the LRP magic happens.
+	# Reset gradient
+	x.grad = None
+
+	# Forward pass with rule argument to "prepare" the explanation
+	y_hat = model.forward(x, explain=True, rule=rule, pattern=pattern)
+	# Choose argmax
+	y_hat = y_hat[torch.arange(x.shape[0]), y_hat.max(1)[1]]
+	# y_hat *= 0.5 * y_hat # to use value of y_hat as starting point
+	y_hat = y_hat.sum()
+
+	# Backward pass (compute explanation)
+	y_hat.backward()
+	attr = x.grad
+
+	if postprocess:  # Used to compute input * gradient
+		with torch.no_grad(): 
+			attr = postprocess(attr)
+
+	attr = heatmap_grid(attr, cmap_name=cmap)
+
+	if title is None: title = rule
+	plot_attribution(attr, ax_, pred, title, cmap=cmap)
 	
+#Find out what the accuracy is on test data
+def test_model_lrp(output_filename, model, test_iterator):
+	#model.load_state_dict(torch.load(output_filename))
+	optimizer = optim.Adam(model.parameters())
+	criterion = nn.CrossEntropyLoss()
+	model, a, b, c = load_checkpoint(model, optimizer, criterion, "MLP_neural_network.pt")
+	
+	#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+	device = 'cpu'
+	model = model.to(device)
+	criterion = criterion.to(device)
+	
+	test_loss, test_acc = evaluate(model, test_iterator, criterion, device)
+	print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
+	
+
+	#output confusion matrix
+	model.eval()
+	with torch.no_grad():
+		y_true = []
+		y_choice = []
+		for item in test_iterator:
+			x=item['image'].to(device)
+			y=item['classification'].to(device)
+			y_pred, _ = model(x)
+			for entry in y:
+				y_true.append(entry)
+			for entry in y_pred:
+				y_choice.append(torch.argmax(entry).numpy())
+		print("#--------------------------------------#")
+		print("Confusion matrix of test predictions:")
+		print(confusion_matrix(y_true, y_choice))
+
+
+	# # # # Patterns for PatternNet and PatternAttribution
+	#patterns_all = fit_patternnet(model, train_loader, device=args.device)
+	patterns_all = fit_patternnet(model, test_iterator, device)
+	store_patterns("pattern_all.pkl", patterns_all)
+
+
+	pos_patterns_path = (base_path / 'examples' / 'patterns' / 'pattern_pos.pkl').as_posix()
+	if not os.path.exists(pos_patterns_path):
+		patterns_pos = fit_patternnet_positive(model, train_loader, device)#, max_iter=1)
+		store_patterns(pos_patterns_path, patterns_pos)
+	else:
+		patterns_pos = [torch.from_numpy(p).to(args.device) for p in load_patterns(pos_patterns_path)]
+
+
+	# # # Plotting
+	fig, ax = plt.subplots(2, 5, figsize=(10, 5))
+
+	with torch.no_grad(): 
+		x_plot = heatmap_grid(x*2-1, cmap_name="gray")
+		plot_attribution(x_plot, ax[0, 0], pred, "Input")
+
+	# compute_and_plot_explanation("gradient", ax[1, 0], title="gradient")
+	compute_and_plot_explanation("gradient", ax[1, 0], title="input $\\times$ gradient", postprocess = lambda attribution: attribution * x)
+
+	compute_and_plot_explanation("epsilon", ax[0, 1])
+	compute_and_plot_explanation("gamma+epsilon", ax[1, 1])
+	# 
+	compute_and_plot_explanation("alpha1beta0", ax[0, 2])
+	compute_and_plot_explanation("alpha2beta1", ax[1, 2])
+	# 
+	compute_and_plot_explanation("patternnet", ax[0, 3], pattern=patterns_all, title="PatternNet $S(x)$", cmap='gray')
+	compute_and_plot_explanation("patternnet", ax[1, 3], pattern=patterns_pos, title="PatternNet $S(x)_{+-}$", cmap='gray')
+
+	compute_and_plot_explanation("patternattribution", ax[0, 4], pattern=patterns_all, title="PatternAttribution $S(x)$")
+	compute_and_plot_explanation("patternattribution", ax[1, 4], pattern=patterns_pos, title="PatternAttribution $S(x)_{+-}$")
+
+	fig.tight_layout()
+
+	fig.savefig((base_path / 'examples' / 'plots' / "mnist_explanations.png").as_posix(), dpi=280)
+	plt.show()
+
+
+	return test_acc	
