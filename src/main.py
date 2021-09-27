@@ -32,10 +32,10 @@ outputpath = "./plotting.csv"
 ##########################################################################
 def main():
 	#works
-	#simple_MLP_example()
+	simple_MLP_example()
 	
 	#does not work
-	simple_AlexNet_example()
+	#simple_AlexNet_example()
 	
 	#does not work
 	#lrp_example()
@@ -53,7 +53,7 @@ def simple_MLP_example():
 	
 	#set values for frame size and num epochs
 	frame_size = 160
-	num_epochs = 2
+	num_epochs = 20
 		
 	#split train/val/test, then load into data iterators
 	tr_it, v_it, te_it = functions.prepare_data(csvpath, frame_size)	
@@ -61,7 +61,6 @@ def simple_MLP_example():
 	#Build model architecture
 	INPUT_DIM = frame_size * frame_size * 3
 	OUTPUT_DIM = 7
-	#model = MLP_w_torchlrp(INPUT_DIM, OUTPUT_DIM)
 	model = MLP(INPUT_DIM, OUTPUT_DIM)	
 
 	#train model on info in csv

@@ -72,42 +72,70 @@ def write_art_labels_to_csv(datapath, csvpath):
 	
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
 def prepare_data(csvpath, frame_size):
+	BATCH_SIZE = 1
+	
+	initial_transforms = transforms.Compose([transforms.Resize((frame_size, frame_size))])
+	
+	#Read in data pointers
+	origin_df = pd.read_csv(csvpath)
+	origin_dataset = MahanArtDataset(origin_df, transform=initial_transforms)
+	origin_iterator = data.DataLoader(origin_dataset, batch_size = BATCH_SIZE)
+	
+	#Determine data statistics for normalization
+	means = torch.zeros(3)
+	stds = torch.zeros(3)
+	for item in origin_iterator:
+		img = item["image"].squeeze()
+		means += torch.mean(img, dim = (1,2))
+		stds += torch.std(img, dim = (1,2))
 
-	#Determine what preprocessing steps the photos should go through
-	#	ToPILImage() is so that ToTensor() doesn't complain
+	means /= len(origin_iterator)
+	stds /= len(origin_iterator)
+	
+	print(means)
+	print(stds)
+	
+	
+	#Split train/val/test from pandas dataframe
+	train_df = origin_df.sample(frac=TRAIN_TEST_RATIO, random_state=SEED)
+	test_df = origin_df.drop(train_df.index)
+	val_df = train_df.sample(frac=VALIDATION_TRAIN_RATIO, random_state=SEED)
+	train_df = train_df.drop(val_df.index)
+	
+	'''
 	chosen_transforms = transforms.Compose([	#SquarePad(csvpath),
 							#transforms.CenterCrop(frame_size),
 							transforms.Resize((frame_size, frame_size)),
 							transforms.RandomRotation(20),
 							transforms.ToPILImage(), 
 							transforms.ToTensor()])
+	'''
+	
+	train_transforms = transforms.Compose([
+		    transforms.Resize(frame_size),
+		    transforms.RandomRotation(5),
+		    transforms.RandomHorizontalFlip(0.5),
+		    transforms.RandomCrop(frame_size, padding = 10),
+		    transforms.ToTensor()
+		])
 
-	#Split train/val/test from pandas dataframe
-	origin_df = pd.read_csv(csvpath)
-	train_df = origin_df.sample(frac=TRAIN_TEST_RATIO, random_state=SEED)
-	test_df = origin_df.drop(train_df.index)
-	val_df = train_df.sample(frac=VALIDATION_TRAIN_RATIO, random_state=SEED)
-	train_df = train_df.drop(val_df.index)
+	test_transforms = transforms.Compose([
+		            transforms.Resize((frame_size, frame_size))#,
+		            #transforms.Normalize(mean = means, std = stds)
+		#            transforms.CenterCrop(frame_size),
+		 #           transforms.ToTensor()
+		        ])
+	
 	
 	#Load data references into memory
-	training_data = MahanArtDataset(train_df, transform=chosen_transforms)
-	validation_data = MahanArtDataset(val_df, transform=chosen_transforms)
-	testing_data = MahanArtDataset(test_df, transform=chosen_transforms)
+	training_data = MahanArtDataset(train_df, transform=test_transforms)
+	validation_data = MahanArtDataset(val_df, transform=test_transforms)
+	testing_data = MahanArtDataset(test_df, transform=test_transforms)
 	
-	#print(f'Number of initial training examples: {len(training_data)}')
-	#print(f'Number of initial validation examples: {len(validation_data)}')
-	#print(f'Number of initial testing examples: {len(testing_data)}')
-
 	#Define iterators from pytorch, helps manage the data references
-	BATCH_SIZE = 115
 	train_iterator = data.DataLoader(training_data, shuffle = True, batch_size = BATCH_SIZE)
 	valid_iterator = data.DataLoader(validation_data, batch_size = BATCH_SIZE)
 	test_iterator = data.DataLoader(testing_data, batch_size = BATCH_SIZE)
-
-	#print("Attempting to access classifications")
-	#for item in train_iterator:
-	#	print("image is: " + str(item['classification']))
-	#print("Classification access complete")
 
 	return train_iterator, valid_iterator, test_iterator
 
@@ -127,6 +155,8 @@ def train(model, iterator, optimizer, criterion, device, logging_file):
 		x=item['image'].to(device)
 		y=item['classification'].to(device)
 		optimizer.zero_grad()
+		#print(x)
+		#print(y)
 		y_pred, _ = model(x)
 		loss = criterion(y_pred, y)
 		acc = calculate_accuracy(y_pred, y)
@@ -271,6 +301,16 @@ def test_model(output_filename, model, test_iterator):
 		print(confusion_matrix(y_true, y_choice))
 
 	return test_acc
+	
+	
+	
+	
+	
+	
+	
+##########################################################################
+#			LRP stuff	
+##########################################################################	
 	
 def compute_and_plot_explanation(rule, ax_, title=None, postprocess=None, pattern=None, cmap='seismic'): 
 

@@ -14,18 +14,20 @@ import time
 
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from skimage import io, transform
+#from skimage import io, transform
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
 from torchvision.transforms.functional import pad
-from torchvision import transforms
+from torchvision import transforms, io
 import numpy as np
 import numbers
 import csv
 import PIL
 import lrp
 
+from PIL import Image
+from matplotlib import cm
 
 #Access to the dataset of images and the label
 class MahanArtDataset(Dataset):
@@ -42,37 +44,33 @@ class MahanArtDataset(Dataset):
 	def __getitem__(self, index):
 		#Lookup data
 		imagepath = self.data['filepath'].iloc[index]
-		image = io.imread(imagepath)
+		#image = io.imread(imagepath)
+		image = io.read_image(imagepath)
 		#torch long type required by CrossEntropyLoss()
 		#https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
 		classification = torch.tensor(self.data['classification'].iloc[index], dtype=torch.long)
-				
-		#Quick and dirty greyscale to rgb conversion
-		if (len(image.shape)==2):
-			image = np.array([image, image, image])
-			image = np.transpose(image, (1,2,0))
+
 		
+
+		#Quick and dirty greyscale to rgb conversion
+		if (image.shape[0]==1):
+			#Copy the data from one channel to all three
+			image = image.repeat(3, 1, 1)
+
 		if (self.show):
 			plt.figure()
-			plt.imshow(image) 
+			plt.imshow(image.permute(1,2,0)) 
 			plt.show()  # display it
-				
+
 		#Preprocessing transforms
 		if self.transform:
-			#randomCrop expects the last two dimensions to be H and W
-			image = np.transpose(image, (2,0,1))
-			image = torch.from_numpy(image)
-			
 			image = self.transform(image)
 			
-			#image = image.numpy()
-			#transpose back into standard H W RGB format
-			image = np.transpose(image, (1,2,0))
-			
 			if (self.show):
-				plt.imshow(image) 
+				plt.imshow(image.permute(1,2,0)) 
 				plt.show() 
-			
+		
+		image = image.to(torch.float32).squeeze()	
 		return {'image':image, 'classification':classification}
 
 class MLP(nn.Module):
