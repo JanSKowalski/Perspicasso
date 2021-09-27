@@ -62,6 +62,8 @@ class MahanArtDataset(Dataset):
 			plt.imshow(image.permute(1,2,0)) 
 			plt.show()  # display it
 
+		image = image.to(torch.float32).squeeze()
+
 		#Preprocessing transforms
 		if self.transform:
 			image = self.transform(image)
@@ -70,7 +72,7 @@ class MahanArtDataset(Dataset):
 				plt.imshow(image.permute(1,2,0)) 
 				plt.show() 
 		
-		image = image.to(torch.float32).squeeze()	
+			
 		return {'image':image, 'classification':classification}
 
 class MLP(nn.Module):

@@ -37,7 +37,7 @@ from classes import MahanArtDataset
 TRAIN_TEST_RATIO = 0.8
 VALIDATION_TRAIN_RATIO = 0.1
 
-SEED = 1234
+SEED = random.randint(1, 1000)
 
 random.seed(SEED)
 np.random.seed(SEED)
@@ -71,9 +71,8 @@ def write_art_labels_to_csv(datapath, csvpath):
 	print("There are "+ str(size_of_data) +" data entries in this csv")
 	
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
-def prepare_data(csvpath, frame_size):
-	BATCH_SIZE = 1
-	
+def prepare_data(csvpath, frame_size, BATCH_SIZE):
+	print(f"SEED: {SEED}")
 	initial_transforms = transforms.Compose([transforms.Resize((frame_size, frame_size))])
 	
 	#Read in data pointers
@@ -85,50 +84,37 @@ def prepare_data(csvpath, frame_size):
 	means = torch.zeros(3)
 	stds = torch.zeros(3)
 	for item in origin_iterator:
-		img = item["image"].squeeze()
-		means += torch.mean(img, dim = (1,2))
-		stds += torch.std(img, dim = (1,2))
+		img = item["image"]
+		means += torch.mean(img, dim = (0, 2, 3))
+		stds += torch.std(img, dim = (0, 2, 3))
 
 	means /= len(origin_iterator)
 	stds /= len(origin_iterator)
 	
 	print(means)
 	print(stds)
-	
-	
+		
 	#Split train/val/test from pandas dataframe
 	train_df = origin_df.sample(frac=TRAIN_TEST_RATIO, random_state=SEED)
 	test_df = origin_df.drop(train_df.index)
 	val_df = train_df.sample(frac=VALIDATION_TRAIN_RATIO, random_state=SEED)
 	train_df = train_df.drop(val_df.index)
 	
-	'''
-	chosen_transforms = transforms.Compose([	#SquarePad(csvpath),
-							#transforms.CenterCrop(frame_size),
-							transforms.Resize((frame_size, frame_size)),
-							transforms.RandomRotation(20),
-							transforms.ToPILImage(), 
-							transforms.ToTensor()])
-	'''
-	
 	train_transforms = transforms.Compose([
-		    transforms.Resize(frame_size),
-		    transforms.RandomRotation(5),
-		    transforms.RandomHorizontalFlip(0.5),
-		    transforms.RandomCrop(frame_size, padding = 10),
-		    transforms.ToTensor()
+				transforms.Resize((frame_size, frame_size)),
+				transforms.RandomRotation(5),
+				transforms.RandomHorizontalFlip(0.5),
+				transforms.Normalize(mean = means, std = stds)
 		])
 
 	test_transforms = transforms.Compose([
-		            transforms.Resize((frame_size, frame_size))#,
-		            #transforms.Normalize(mean = means, std = stds)
-		#            transforms.CenterCrop(frame_size),
-		 #           transforms.ToTensor()
+		            transforms.Resize((frame_size, frame_size)),
+		            transforms.Normalize(mean = means, std = stds)
 		        ])
 	
 	
 	#Load data references into memory
-	training_data = MahanArtDataset(train_df, transform=test_transforms)
+	training_data = MahanArtDataset(train_df, transform=train_transforms)
 	validation_data = MahanArtDataset(val_df, transform=test_transforms)
 	testing_data = MahanArtDataset(test_df, transform=test_transforms)
 	
@@ -165,15 +151,6 @@ def train(model, iterator, optimizer, criterion, device, logging_file):
 		epoch_loss += loss.item()
 		epoch_acc += acc.item()
 	return epoch_loss / len(iterator), epoch_acc / len(iterator)
-
-#precision, accuracy
-#output is an n-array
-#def calculate_classwise_metrics(y_pred, y):
-##    top_pred = y_pred.argmax(1, keepdim = True)
-##    correct = top_pred.eq(y.view_as(top_pred)).sum()
-#    acc = correct.float() / y.shape[0]
-#    return acc
-    
 
 #Written by Ben Trevett
 def evaluate(model, iterator, criterion, device):
