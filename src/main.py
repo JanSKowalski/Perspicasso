@@ -17,10 +17,14 @@ import pathlib
 import argparse
 import torchvision
 import matplotlib.pyplot as plt
-from utils import store_patterns, load_patterns
-from visualization import heatmap_grid
-import lrp
-from lrp.patterns import fit_patternnet, fit_patternnet_positive # PatternNet patterns
+#from utils import store_patterns, load_patterns
+#from visualization import heatmap_grid
+#import lrp
+#from lrp.patterns import fit_patternnet, fit_patternnet_positive # PatternNet patterns
+
+from functions import write_results_to_csv
+
+
 
 import torch.nn as nn
 
@@ -34,7 +38,7 @@ outputpath = "./plotting.csv"
 def main():
 	#works
 	Wall_time_start = time.monotonic()
-	for trial_num in range(1):
+	for trial_num in range(5):
 		simple_MLP_example(trial_num)
 	Wall_time_end = time.monotonic()
 	print(f"Wall Time: %.2f" % (Wall_time_end-Wall_time_start))
@@ -62,7 +66,8 @@ def simple_MLP_example(trial_num):
 	batch_size = 8
 		
 	#split train/val/test, then load into data iterators
-	tr_it, v_it, te_it = functions.prepare_data(csvpath, frame_size, batch_size)	
+	#also store the dictionary defining which classes correspond to which category index
+	tr_it, v_it, te_it, c_d = functions.prepare_data(csvpath, frame_size, batch_size)	
 	
 	#Build model architecture
 	INPUT_DIM = frame_size * frame_size * 3
@@ -70,7 +75,7 @@ def simple_MLP_example(trial_num):
 	model = MLP(INPUT_DIM, OUTPUT_DIM)	
 
 	#train model on info in csv
-	output_filename = model.name()+'_'+str(trial_num)+'.pt'
+	output_filename = 'data/5th_data/'+model.name()
 	
 	#delete any previous model with the same name
 	try:
@@ -80,10 +85,12 @@ def simple_MLP_example(trial_num):
 		pass
 		
 	#training function
-	functions.train_model(num_epochs, model, tr_it, v_it, output_filename, False)
+	functions.train_model(num_epochs, model, tr_it, v_it, output_filename, trial_num, False)
 
 	#load trained model from pt, test model
-	functions.test_model(output_filename, model, te_it)
+	cm = functions.test_model(output_filename, model, te_it)
+	
+	write_results_to_csv(cm, output_filename, trial_num, c_d, frame_size, num_epochs, batch_size)
 
 #fixed frame size, fixed number of epochs
 def simple_AlexNet_example():

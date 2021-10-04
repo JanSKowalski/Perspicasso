@@ -1,0 +1,21 @@
+Epoch: 00 | Epoch Time: 0m 1s
+	Train Loss: 1.715 | Train Acc: 40.91%
+	 Val. Loss: 4.652 |  Val. Acc: 6.25%Epoch: 01 | Epoch Time: 0m 1s
+	Train Loss: 1.319 | Train Acc: 56.82%
+	 Val. Loss: 5.236 |  Val. Acc: 12.50%Epoch: 02 | Epoch Time: 0m 1s
+	Train Loss: 1.388 | Train Acc: 66.67%
+	 Val. Loss: 6.010 |  Val. Acc: 6.25%Epoch: 03 | Epoch Time: 0m 1s
+	Train Loss: 0.817 | Train Acc: 70.83%
+	 Val. Loss: 3.696 |  Val. Acc: 6.25%Epoch: 04 | Epoch Time: 0m 1s
+	Train Loss: 0.571 | Train Acc: 79.92%
+	 Val. Loss: 6.503 |  Val. Acc: 12.50%Epoch: 05 | Epoch Time: 0m 1s
+	Train Loss: 0.491 | Train Acc: 84.09%
+	 Val. Loss: 4.707 |  Val. Acc: 12.50%Epoch: 06 | Epoch Time: 0m 1s
+	Train Loss: 0.361 | Train Acc: 89.77%
+	 Val. Loss: 6.252 |  Val. Acc: 18.75%Epoch: 07 | Epoch Time: 0m 1s
+	Train Loss: 0.229 | Train Acc: 93.18%
+	 Val. Loss: 7.015 |  Val. Acc: 12.50%Epoch: 08 | Epoch Time: 0m 1s
+	Train Loss: 0.179 | Train Acc: 94.32%
+	 Val. Loss: 7.153 |  Val. Acc: 12.50%Epoch: 09 | Epoch Time: 0m 1s
+	Train Loss: 0.082 | Train Acc: 100.00%
+	 Val. Loss: 6.706 |  Val. Acc: 12.50%

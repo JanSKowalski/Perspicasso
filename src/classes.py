@@ -33,14 +33,19 @@ from matplotlib import cm
 class MahanArtDataset(Dataset):
 	def __init__(self, dataframe, transform=None):
 		self.data = dataframe
-		self.data['classification'] = self.data['classification'].astype('category').cat.codes
+		self.categories = self.data['classification'].astype('category')
+		self.data['classification'] = self.categories.cat.codes
 		self.transform = transform
 		self.len = len(self.data)
 		self.show = False
 
+	def access_categories(self):	
+		s = dict(enumerate(self.categories.cat.categories))
+		return s
+	
 	def __len__(self):
 		return self.len
-
+		
 	def __getitem__(self, index):
 		#Lookup data
 		imagepath = self.data['filepath'].iloc[index]
@@ -49,8 +54,6 @@ class MahanArtDataset(Dataset):
 		#torch long type required by CrossEntropyLoss()
 		#https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
 		classification = torch.tensor(self.data['classification'].iloc[index], dtype=torch.long)
-
-		
 
 		#Quick and dirty greyscale to rgb conversion
 		if (image.shape[0]==1):
@@ -62,17 +65,18 @@ class MahanArtDataset(Dataset):
 			plt.imshow(image.permute(1,2,0)) 
 			plt.show()  # display it
 
-		image = image.to(torch.float32).squeeze()
+		image = image.to(torch.float32).squeeze()	
 
 		#Preprocessing transforms
 		if self.transform:
 			image = self.transform(image)
 			
 			if (self.show):
-				plt.imshow(image.permute(1,2,0)) 
+				plt.imshow(image.to(torch.int8).permute(1,2,0)) 
+				#plt.imshow(image.permute(1,2,0)) 
 				plt.show() 
 		
-			
+		
 		return {'image':image, 'classification':classification}
 
 class MLP(nn.Module):

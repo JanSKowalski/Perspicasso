@@ -23,16 +23,17 @@ from torch.utils.data import Dataset, DataLoader
 from skimage import io, transform
 
 import matplotlib.pyplot as plt
-from utils import store_patterns, load_patterns
-from visualization import heatmap_grid
-import lrp
-from lrp.patterns import fit_patternnet, fit_patternnet_positive # PatternNet patterns
+#from utils import store_patterns, load_patterns
+#from visualization import heatmap_grid
+#import lrp
+#from lrp.patterns import fit_patternnet, fit_patternnet_positive # PatternNet patterns
 
 #needed for write_art_labels_to_csv()
 import os
 import csv
 
 from classes import MahanArtDataset	
+#from main import SEED
 
 TRAIN_TEST_RATIO = 0.8
 VALIDATION_TRAIN_RATIO = 0.1
@@ -48,8 +49,6 @@ torch.backends.cudnn.deterministic = True
 #From Mahan's directory of photos, produce a csv that connects image with label
 #Assumes csvpath and datapath are correct, defined in main.py
 def write_art_labels_to_csv(datapath, csvpath):
-	counter = 0
-
 	#generate csv file with classification
 	#id filename 
 	csv_file = open(csvpath, 'w')
@@ -80,6 +79,10 @@ def prepare_data(csvpath, frame_size, BATCH_SIZE):
 	origin_dataset = MahanArtDataset(origin_df, transform=initial_transforms)
 	origin_iterator = data.DataLoader(origin_dataset, batch_size = BATCH_SIZE)
 	
+	#Determine which cat codes correspond to which art gallery
+	class_dictionary = origin_dataset.access_categories()
+
+	
 	#Determine data statistics for normalization
 	means = torch.zeros(3)
 	stds = torch.zeros(3)
@@ -90,9 +93,6 @@ def prepare_data(csvpath, frame_size, BATCH_SIZE):
 
 	means /= len(origin_iterator)
 	stds /= len(origin_iterator)
-	
-	print(means)
-	print(stds)
 		
 	#Split train/val/test from pandas dataframe
 	train_df = origin_df.sample(frac=TRAIN_TEST_RATIO, random_state=SEED)
@@ -123,7 +123,7 @@ def prepare_data(csvpath, frame_size, BATCH_SIZE):
 	valid_iterator = data.DataLoader(validation_data, batch_size = BATCH_SIZE)
 	test_iterator = data.DataLoader(testing_data, batch_size = BATCH_SIZE)
 
-	return train_iterator, valid_iterator, test_iterator
+	return train_iterator, valid_iterator, test_iterator, class_dictionary
 
 #Written by Ben Trevett
 def calculate_accuracy(y_pred, y):
@@ -177,9 +177,10 @@ def epoch_time(start_time, end_time):
 	return elapsed_mins, elapsed_secs
 
 #High level training control -- Important
-def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filename, load_previous):
+def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filename, trial_num, load_previous):
 
-	logging_file = open("logging.txt", 'a')
+	previous_training = output_filename+'.pt'
+	logging_file = open(output_filename+'_'+str(trial_num)+'.txt', 'a')
 
 	#Look at computer hardware
 	optimizer = optim.Adam(model.parameters())
@@ -188,7 +189,7 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 	start_epoch = 0
 	if (load_previous):
 		try:
-			model, optimizer, start_epoch, criterion = load_checkpoint(model, optimizer, criterion)
+			model, optimizer, start_epoch, criterion = load_checkpoint(model, optimizer, criterion, previous_training)
 			for state in optimizer.state.values():
 				for k, v in state.items():
 					if isinstance(v, torch.Tensor):
@@ -211,24 +212,20 @@ def train_model(NUM_EPOCHS, model, train_iterator, valid_iterator, output_filena
 		end_time = time.monotonic()
 		epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-		print(f'Epoch: {start_epoch+epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
-		print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
-		print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
-		logging_file.write(f'Epoch: {start_epoch+epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s\n')
-		logging_file.write(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%\n')
-		
-		logging_file.write(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%\n')
+		output = f'Epoch: {start_epoch+epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s\n\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%\n\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%'
+		print(output)
+		logging_file.write(output)
 		
 		
 		
 	state = {'epoch': NUM_EPOCHS, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict(), 'criterion': criterion, }
-	torch.save(state, output_filename)
+	torch.save(state, previous_training)
 	logging_file.close()
 
 #Written by Scott Hawley
 #https://discuss.pytorch.org/t/loading-a-saved-model-for-continue-training/17244/2
 # Note: Input model & optimizer should be pre-defined.  This routine only updates their states.
-def load_checkpoint(model, optimizer, criterion, filename="MLP_neural_network.pt"):
+def load_checkpoint(model, optimizer, criterion, filename):
     start_epoch = 0
     if os.path.isfile(filename):
         print("=> loading checkpoint '{}'".format(filename))
@@ -273,18 +270,96 @@ def test_model(output_filename, model, test_iterator):
 				y_true.append(entry)
 			for entry in y_pred:
 				y_choice.append(torch.argmax(entry).numpy())
-		print("#--------------------------------------#")
-		print("Confusion matrix of test predictions:")
-		print(confusion_matrix(y_true, y_choice))
+		#print("#--------------------------------------#")
+		#print("Confusion matrix of test predictions:")
+		cm = confusion_matrix(y_true, y_choice)
 
-	return test_acc
+	return cm
 	
 	
+def write_results_to_csv(cm, output_filename, trial_num, cat_dict, frame_size, num_epochs, batch_size):
+	csv_filename = output_filename+'.csv'
+	
+	if os.path.isfile(csv_filename):
+		csv_file = open(csv_filename, 'a')
+		writer = csv.writer(csv_file)
+	else:
+		csv_file = open(csv_filename, 'w')
+		writer = csv.writer(csv_file)
+		row = ["Network: MLP"]
+		writer.writerow(row)
+		row = [f"Seed: {SEED}", f"Frame size: {frame_size}", f"Number of epochs: {num_epochs}", f"Number of samples per batch: {batch_size}"]
+		writer.writerow(row)
+		row = []		
+		writer.writerow(row)
+		#Column titles
+		row = ["Run#", "Accuracy"]
+		for i in range(len(cat_dict)):
+			row.append("")
+		row.append("Precision")
+		for i in range(len(cat_dict)):
+			row.append("")
+		row.append("Sensitivity")
+		for i in range(len(cat_dict)):
+			row.append("")
+		row.append("Specificity")
+		writer.writerow(row)
+		row = ["",""]
+		for i in range(len(cat_dict)):
+			row.append(cat_dict[i])
+		row.append("")
+		for i in range(len(cat_dict)):
+			row.append(cat_dict[i])
+		row.append("")
+		for i in range(len(cat_dict)):
+			row.append(cat_dict[i])
+		row.append("")
+		for i in range(len(cat_dict)):
+			row.append(cat_dict[i])
+		writer.writerow(row)
 	
 	
+	#https://towardsdatascience.com/multi-class-classification-extracting-performance-metrics-from-the-confusion-matrix-b379b427a872	
+	#save metrics for the final results file
+	FP = cm.sum(axis=0) - np.diag(cm) 
+	FN = cm.sum(axis=1) - np.diag(cm)
+	TP = np.diag(cm)
+	TN = cm.sum() - (FP + FN + TP)
 	
+	FP = FP.astype(float)
+	FN = FN.astype(float)
+	TP = TP.astype(float)
+	TN = TN.astype(float)
 	
+	# Sensitivity, hit rate, recall, or true positive rate
+	TPR = TP/(TP+FN)
+	# Specificity or true negative rate
+	TNR = TN/(TN+FP) 
+	# Precision or positive predictive value
+	PPV = TP/(TP+FP)
+	# Overall accuracy for each class
+	ACC = (TP+TN)/(TP+FP+FN+TN)
+		
+	#Put the data in a csv friendly format
+	row = [f"{trial_num}"]
+	row.append(f"{ACC.sum()/len(cat_dict):.2f}")
+	for i in range(len(ACC)):
+		row.append(f"{ACC[i]:.2f}")
+	row.append(f"{PPV.sum()/len(cat_dict):.2f}")
+	for i in range(len(PPV)):
+		row.append(f"{PPV[i]:.2f}")
+	row.append(f"{TPR.sum()/len(cat_dict):.2f}")
+	for i in range(len(TPR)):
+		row.append(f"{TPR[i]:.2f}")
+	row.append(f"{TNR.sum()/len(cat_dict):.2f}")
+	for i in range(len(PPV)):
+		row.append(f"{TNR[i]:.2f}")
+	writer.writerow(row)
 	
+	csv_file.close()	
+
+	
+'''
 ##########################################################################
 #			LRP stuff	
 ##########################################################################	
@@ -393,3 +468,4 @@ def test_model_lrp(output_filename, model, test_iterator):
 
 
 	return test_acc	
+'''
