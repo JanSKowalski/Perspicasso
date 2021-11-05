@@ -135,3 +135,5 @@ doc/*.bbl
 doc/*.blg
 doc/*.out
 src/*.pt
+
+src/data

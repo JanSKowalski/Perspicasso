@@ -38,13 +38,13 @@ from classes import MahanArtDataset
 TRAIN_TEST_RATIO = 0.8
 VALIDATION_TRAIN_RATIO = 0.1
 
-SEED = random.randint(1, 1000)
+#SEED = random.randint(1, 1000)
 
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-torch.cuda.manual_seed(SEED)
-torch.backends.cudnn.deterministic = True
+#random.seed(SEED)
+#np.random.seed(SEED)
+#torch.manual_seed(SEED)
+#torch.cuda.manual_seed(SEED)
+#torch.backends.cudnn.deterministic = True
 
 #From Mahan's directory of photos, produce a csv that connects image with label
 #Assumes csvpath and datapath are correct, defined in main.py
@@ -71,7 +71,7 @@ def write_art_labels_to_csv(datapath, csvpath):
 	
 #Define transforms on the data, collect the data into torch iterators, instantiate model object
 def prepare_data(csvpath, frame_size, BATCH_SIZE):
-	print(f"SEED: {SEED}")
+	#print(f"SEED: {SEED}")
 	initial_transforms = transforms.Compose([transforms.Resize((frame_size, frame_size))])
 	
 	#Read in data pointers
@@ -95,9 +95,11 @@ def prepare_data(csvpath, frame_size, BATCH_SIZE):
 	stds /= len(origin_iterator)
 		
 	#Split train/val/test from pandas dataframe
-	train_df = origin_df.sample(frac=TRAIN_TEST_RATIO, random_state=SEED)
+	#train_df = origin_df.sample(frac=TRAIN_TEST_RATIO, random_state=SEED)
+	train_df = origin_df.sample(frac=TRAIN_TEST_RATIO)
 	test_df = origin_df.drop(train_df.index)
-	val_df = train_df.sample(frac=VALIDATION_TRAIN_RATIO, random_state=SEED)
+	#val_df = train_df.sample(frac=VALIDATION_TRAIN_RATIO, random_state=SEED)
+	val_df = train_df.sample(frac=VALIDATION_TRAIN_RATIO)
 	train_df = train_df.drop(val_df.index)
 	
 	train_transforms = transforms.Compose([
@@ -288,7 +290,8 @@ def write_results_to_csv(cm, output_filename, trial_num, cat_dict, frame_size, n
 		writer = csv.writer(csv_file)
 		row = ["Network: MLP"]
 		writer.writerow(row)
-		row = [f"Seed: {SEED}", f"Frame size: {frame_size}", f"Number of epochs: {num_epochs}", f"Number of samples per batch: {batch_size}"]
+		#row = [f"Seed: {SEED}", f"Frame size: {frame_size}", f"Number of epochs: {num_epochs}", f"Number of samples per batch: {batch_size}"]
+		row = ["", f"Frame size: {frame_size}", f"Number of epochs: {num_epochs}", f"Number of samples per batch: {batch_size}"]
 		writer.writerow(row)
 		row = []		
 		writer.writerow(row)
@@ -342,16 +345,16 @@ def write_results_to_csv(cm, output_filename, trial_num, cat_dict, frame_size, n
 		
 	#Put the data in a csv friendly format
 	row = [f"{trial_num}"]
-	row.append(f"{ACC.sum()/len(cat_dict):.2f}")
+	row.append(f"{np.nanmean(ACC):.2f}")
 	for i in range(len(ACC)):
 		row.append(f"{ACC[i]:.2f}")
-	row.append(f"{PPV.sum()/len(cat_dict):.2f}")
+	row.append(f"{np.nanmean(PPV):.2f}")
 	for i in range(len(PPV)):
 		row.append(f"{PPV[i]:.2f}")
-	row.append(f"{TPR.sum()/len(cat_dict):.2f}")
+	row.append(f"{np.nanmean(TPR):.2f}")
 	for i in range(len(TPR)):
 		row.append(f"{TPR[i]:.2f}")
-	row.append(f"{TNR.sum()/len(cat_dict):.2f}")
+	row.append(f"{np.nanmean(TNR):.2f}")
 	for i in range(len(PPV)):
 		row.append(f"{TNR[i]:.2f}")
 	writer.writerow(row)
