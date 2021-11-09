@@ -7,7 +7,7 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-#from sklearn import metrics
+from sklearn import metrics
 #from sklearn import decomposition
 #from sklearn import manifold
 from sklearn.metrics import confusion_matrix
@@ -296,7 +296,7 @@ def write_results_to_csv(cm, output_filename, trial_num, cat_dict, frame_size, n
 		row = []		
 		writer.writerow(row)
 		#Column titles
-		row = ["Run#", "Accuracy"]
+		row = ["Run#", "Ski-learn Accuracy", "Accuracy"]
 		for i in range(len(cat_dict)):
 			row.append("")
 		row.append("Precision")
@@ -343,8 +343,11 @@ def write_results_to_csv(cm, output_filename, trial_num, cat_dict, frame_size, n
 	# Overall accuracy for each class
 	ACC = (TP+TN)/(TP+FP+FN+TN)
 		
+	ski_acc = metrics.accuracy_score(cm.sum(axis=0), cm.sum(axis=1), True)	
+		
 	#Put the data in a csv friendly format
 	row = [f"{trial_num}"]
+	row.append(f"{ski_acc:.2f}")
 	row.append(f"{np.nanmean(ACC):.2f}")
 	for i in range(len(ACC)):
 		row.append(f"{ACC[i]:.2f}")

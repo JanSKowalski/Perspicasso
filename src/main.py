@@ -31,23 +31,21 @@ import torch.nn as nn
 datapath = "../Dataset/images"
 csvpath = "./images.csv"
 outputpath = "./plotting.csv"
-
+resultspath = "./data_frame_80"
 
 ##########################################################################
 ##############             Main commands                 #################
 ##########################################################################
 def main():
-	for frame_size in range(40, 160, 40):
-		for num_epochs in range(10, 60, 10):
-#	for frame_size in range(40, 60, 40):
-#		for num_epochs in range(10, 20, 10):
-			Wall_time_start = time.monotonic()
-			for trial_num in range(1000):
-				simple_MLP_example(trial_num, frame_size, num_epochs)
-			Wall_time_end = time.monotonic()
-			print("-------------------------------------------------")
-			print(f"Frame size: {frame_size}, Number of Epochs: {num_epochs}")
-			print(f"Wall Time: %.2f" % (Wall_time_end-Wall_time_start))
+	frame_size = 80
+	for num_epochs in range(10, 60, 10):
+		Wall_time_start = time.monotonic()
+		for trial_num in range(500):
+			simple_MLP_example(trial_num, frame_size, num_epochs)
+		Wall_time_end = time.monotonic()
+		print("-------------------------------------------------")
+		print(f"Frame size: {frame_size}, Number of Epochs: {num_epochs}")
+		print(f"Wall Time: %.2f" % (Wall_time_end-Wall_time_start))
 
 ##########################################################################
 
@@ -69,7 +67,7 @@ def simple_MLP_example(trial_num, frame_size, num_epochs):
 	model = MLP(INPUT_DIM, OUTPUT_DIM)	
 
 	#train model on info in csv
-	output_filename = 'data/'+model.name()
+	output_filename = ''+resultspath+"/"+model.name()
 	
 	#delete any previous model with the same name
 	try:
